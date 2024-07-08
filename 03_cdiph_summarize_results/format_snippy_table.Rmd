@@ -1,0 +1,130 @@
+---
+title: "Format SNP tables for reporting"
+author: "Lea Stauber"
+date: "9/12/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(kableExtra)
+library(tidyverse)
+library(tibble)
+```
+
+### Format SNIPPY output
+
+```{r}
+## read table --------------------------------------------------------
+path <- r"(C:\LocalDocuments\RScripts\Cdiph\results_ClusterC_tsv.txt)"
+table <- read.delim(path, check.names=FALSE, row.names=1)
+
+## reorder columns by total SNP count --------------------------------
+order <- as.vector(t(table)[,1])
+names(order) <- colnames(table)
+order <- sort(order)
+
+ordered_table <- select(table, names(order))
+
+## predefined values for kable styling -------------------------------
+uvr <- which(rownames(ordered_table) == "unknown_variant_region")
+uve <- which(rownames(ordered_table) == "unknown_variant_effect")
+cds <- which(rownames(ordered_table) == "CDS")
+rows <- nrow(ordered_table)
+
+
+## make kable --------------------------------------------------------
+output_table <- ordered_table %>%
+  mutate_if(is.numeric, 
+            function(i){
+              cell_spec(i, background = ifelse(i > 0, "lightblue", "white"))}) %>% ## highlight all non-zero values in table
+  kbl(escape = F, table.attr = "style = \"color: black;\"", align = "c") %>% 
+  kable_styling(full_width = F, html_font = "Arial") %>%
+  row_spec(0, bold = TRUE) %>% 
+  ## SNP type
+  pack_rows("Type<sup>$</sup>", ## superscript in html
+            2, ## start second row
+            uvr,  ## until "unknown_variant_region" row
+            label_row_css = "background-color: lightgrey; color: black;",
+            escape = F, ## latex thing for superscript
+            indent = FALSE
+  ) %>%
+  ## Genomic region with variant
+  pack_rows(
+    "Genomic region with variant",
+    cds,
+    (uvr - 1),
+    label_row_css = "background-color: lightgrey; color: black;",
+    indent = FALSE
+  ) %>%
+  ## variant effect
+  pack_rows("Variant effect", (uvr + 1), uve, label_row_css = "background-color: lightgrey; color: black;", indent = FALSE) 
+
+## inspect kable output ----------------------------------------------
+output_table
+
+
+## save output -------------------------------------------------------
+save_kable(output_table, "snippy_table.html", keep_tex = TRUE) ## it has to be saved to html first, because of a Windows bug
+webshot::webshot("snippy_table.html", file = "snippy_table.png", zoom = 2, vwidth = 2000) ## convert html to png
+
+## remove html
+file.remove("snippy_table.html")
+```
+
+
+### Format MEGAX distance matrix output
+```{r}
+## path to MEGAX distance matrix output file ----------------------
+path <- r"(C:\LocalDocuments\RScripts\Cdiph\ClusterB.dist.csv)"
+
+## specify reference used for SNP  --------------------------------
+ref <- "3811567_S1"
+
+## import table ---------------------------------------------------
+distm <- read.delim(path, sep = ",", header = T, check.names=FALSE, row.names=1) %>% as.matrix()
+## add asteriks to reference
+row.names(distm) <- gsub(ref, paste0(ref, "*"), row.names(distm))
+colnames(distm) <- gsub(ref, paste0(ref, "*"), colnames(distm))
+
+## symmetrically fill the matrix ----------------------------------
+distm[upper.tri(distm)] <- t(distm)[upper.tri(distm)]
+
+distm[is.na(distm)] <- ""
+# distm[upper.tri(distm)] <- "" ## remove upper part of matrix
+
+## predefined values for kable styling ---------------------------- 
+ncols <- ncol(distm)
+
+## make kable ------------------------------------------------------
+dist_tab <-
+  kbl(
+    distm,
+    booktabs = T,
+    table.attr = "style = \"color: black;\"",
+    align = "c",
+    format = "html"
+  ) %>%
+  kable_styling(full_width = F, html_font = "Arial") %>%
+  column_spec(c(1:ncols),
+              border_right = T) %>%
+  column_spec(1, bold = TRUE) ## rownames bold
+
+## inspect kable output ----------------------------------------------
+dist_tab
+  
+## save output -------------------------------------------------------
+save_kable(dist_tab, "MEGA_dist_table.html") ## it has to be saved to html first, because of a Windows bug
+webshot::webshot("MEGA_dist_table.html", file = "MEGA_dist_table.png", zoom = 1, vheight = 300) ## convert html to png
+
+## remove html
+file.remove("MEGA_dist_table.html")
+```
+
+
+
+
+
+
+
+
